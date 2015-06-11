@@ -21,7 +21,7 @@ public class TrackAdapter extends ArrayAdapter<Hashtable<String, String>> {
     private Context context;
 
     public TrackAdapter(Context context, ArrayList<Hashtable<String, String>> dataset) {
-        super(context, R.layout.item_artistsearch, dataset);
+        super(context, R.layout.item_toptentracks, dataset);
         this.context = context;
         this.dataset = dataset;
 
@@ -34,11 +34,12 @@ public class TrackAdapter extends ArrayAdapter<Hashtable<String, String>> {
             // View first appear
 
             LayoutInflater inflater = ((Activity)context).getLayoutInflater();
-            convertView = inflater.inflate(R.layout.item_artistsearch, parent, false);
+            convertView = inflater.inflate(R.layout.item_toptentracks, parent, false);
 
             viewHolder = new ViewHolder();
-            viewHolder.artistImageView = (ImageView)convertView.findViewById(R.id.imageview_artistImg);
-            viewHolder.artistNameTextView = (TextView)convertView.findViewById(R.id.textview_artistName);
+            viewHolder.albumImageView = (ImageView)convertView.findViewById(R.id.imageview_albumImg);
+            viewHolder.trackNameTextView = (TextView)convertView.findViewById(R.id.textview_tracktName);
+            viewHolder.albumNameTextView = (TextView)convertView.findViewById(R.id.textview_albumName);
             // save into tag
             convertView.setTag(viewHolder);
         } else {
@@ -47,30 +48,30 @@ public class TrackAdapter extends ArrayAdapter<Hashtable<String, String>> {
         }
 
         // insert data
-        viewHolder.artistNameTextView.setText(dataset.get(position).get("artistName"));
+        viewHolder.trackNameTextView.setText(dataset.get(position).get("trackName"));
+        viewHolder.albumNameTextView.setText(dataset.get(position).get("albumName"));
+
         // Load artist image
-        String imageUrl = dataset.get(position).get("artistImage");
+        String imageUrl = dataset.get(position).get("smallAlbumImage");
         if (imageUrl.length() > 0) {
             // cancel the previous request, if any...
             //Picasso.with(context).cancelRequest(viewHolder.artistImageView);
             // then load new one
-            Picasso.with(this.context).load(imageUrl).placeholder(R.drawable.loading).fit().into(viewHolder.artistImageView);
+            Picasso.with(this.context).load(imageUrl).placeholder(R.drawable.loading).fit().into(viewHolder.albumImageView);
         } else {
             // clear the image..
             //Picasso.with(context).cancelRequest(viewHolder.artistImageView);
-            Picasso.with(this.context).load(R.drawable.no_image).fit().into(viewHolder.artistImageView);
+            Picasso.with(this.context).load(R.drawable.no_image).fit().into(viewHolder.albumImageView);
         }
 
         return convertView;
     }
 
 
-
-
-
     // view reference
     static class ViewHolder{
-        ImageView artistImageView;
-        TextView artistNameTextView;
+        ImageView albumImageView;
+        TextView albumNameTextView;
+        TextView trackNameTextView;
     }
 }
