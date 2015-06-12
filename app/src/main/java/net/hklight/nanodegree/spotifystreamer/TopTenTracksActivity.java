@@ -1,9 +1,8 @@
 package net.hklight.nanodegree.spotifystreamer;
 
 import android.os.AsyncTask;
-import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
-import android.util.Log;
+import android.support.v7.app.ActionBarActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ListView;
@@ -16,19 +15,21 @@ import java.util.List;
 
 import kaaes.spotify.webapi.android.SpotifyApi;
 import kaaes.spotify.webapi.android.SpotifyService;
-import kaaes.spotify.webapi.android.models.Artist;
-import kaaes.spotify.webapi.android.models.ArtistsPager;
 import kaaes.spotify.webapi.android.models.Image;
 import kaaes.spotify.webapi.android.models.Track;
 import kaaes.spotify.webapi.android.models.Tracks;
+import retrofit.RetrofitError;
 
 
 public class TopTenTracksActivity extends ActionBarActivity {
     private final String LOG_TAG = TopTenTracksActivity.class.getSimpleName();
 
+    private String artistName = "";
     private TrackAdapter trackAdapter;
     private ListView topTenTracksListView;
+
     private HashMap<String, String> artist;
+    private ArrayList<Hashtable<String, String>> dataset;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,16 +38,48 @@ public class TopTenTracksActivity extends ActionBarActivity {
         topTenTracksListView = (ListView) findViewById(R.id.listview_toptentracks);
         topTenTracksListView.setEmptyView(findViewById(android.R.id.empty));
 
+        // init it
+        dataset = new ArrayList<Hashtable<String, String>>();
 
-        artist = (HashMap<String, String>) getIntent().getSerializableExtra("selectedArtist");
+        // get the artist list back, so we don't need to query again if the screen rotate...
+        if (savedInstanceState != null && savedInstanceState.getSerializable("dataset") != null) {
+            // triggle by activity destroy and recreate
+            dataset = (ArrayList<Hashtable<String, String>>)savedInstanceState.getSerializable("dataset");
+
+            artist = (HashMap<String, String>)savedInstanceState.getSerializable("artist");
+            artistName = savedInstanceState.getString("artistName");
+
+            // recreate the listview adapter
+            trackAdapter = new TrackAdapter(TopTenTracksActivity.this, dataset);
+            topTenTracksListView.setAdapter(trackAdapter);
+
+        } else {
+            // from previous activity intent
+            artist = (HashMap<String, String>) getIntent().getSerializableExtra("selectedArtist");
+            artistName = artist.get("artistName");
+
+            // start async task to get the top 10 track
+            TopTenTracksAsyncTask topTenTracksAsyncTask = new TopTenTracksAsyncTask();
+            topTenTracksAsyncTask.execute(artist.get("artistId"));
+        }
 
         // set the title
         getSupportActionBar().setTitle(R.string.title_activity_top_ten_tracks);
-        getSupportActionBar().setSubtitle(artist.get("artistName"));
+        getSupportActionBar().setSubtitle(artistName);
 
-        // start async task to get the top 10 track
-        TopTenTracksAsyncTask topTenTracksAsyncTask = new TopTenTracksAsyncTask();
-        topTenTracksAsyncTask.execute(artist.get("artistId"));
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        //super.onSaveInstanceState(outState);
+        // save the search result
+        // avoid research
+        if (dataset != null) {
+            outState.putSerializable("dataset", dataset);
+            outState.putSerializable("artist", artist);
+            outState.putSerializable("artistName", artistName);
+        }
+
     }
 
     @Override
@@ -93,10 +126,15 @@ public class TopTenTracksActivity extends ActionBarActivity {
             HashMap<String, Object> spotifyParams = new HashMap<String, Object>();
             spotifyParams.put("country", "HK");
 
+            try {
+                Tracks tracks = spotify.getArtistTopTrack(params[0], spotifyParams);
+                return tracks.tracks;
+            } catch (RetrofitError e) {
+                e.printStackTrace();
+                return null;
+            }
 
-            Tracks tracks = spotify.getArtistTopTrack(params[0], spotifyParams);
 
-            return tracks.tracks;
         }
 
         @Override
@@ -109,7 +147,7 @@ public class TopTenTracksActivity extends ActionBarActivity {
             }
 
             // convert it into hashtable
-            ArrayList<Hashtable<String, String>> dataset = new ArrayList<Hashtable<String, String>>();
+            dataset.clear();
 
             if (tracks.size() == 0) {
                 // let the user know
@@ -149,7 +187,6 @@ public class TopTenTracksActivity extends ActionBarActivity {
 
                 dataset.add(eachTrack);
             }
-
 
             trackAdapter = new TrackAdapter(TopTenTracksActivity.this, dataset);
             topTenTracksListView.setAdapter(trackAdapter);

@@ -2,30 +2,21 @@ package net.hklight.nanodegree.spotifystreamer;
 
 import android.content.Intent;
 import android.os.AsyncTask;
-import android.support.v4.app.Fragment;
 import android.os.Bundle;
-import android.util.Log;
-import android.view.KeyEvent;
+import android.support.v4.app.Fragment;
+import android.support.v4.view.MenuItemCompat;
+import android.support.v7.widget.SearchView;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.EditorInfo;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.ListView;
-import android.widget.SimpleAdapter;
-import android.widget.TextView;
 import android.widget.Toast;
 
-import com.squareup.picasso.Picasso;
-
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 
@@ -33,17 +24,20 @@ import kaaes.spotify.webapi.android.SpotifyApi;
 import kaaes.spotify.webapi.android.SpotifyService;
 import kaaes.spotify.webapi.android.models.Artist;
 import kaaes.spotify.webapi.android.models.ArtistsPager;
+import retrofit.RetrofitError;
 
 public class ArtistSearchFragment extends Fragment implements AdapterView.OnItemClickListener {
 
     private final String LOG_TAG = ArtistSearchFragment.class.getSimpleName();
 
+    private ArrayList<Hashtable<String, String>> dataset;
+
     // view
     private boolean isSearching = false;
-    //private TextView artistNameEditText;
     private ListView searchResultListView;
     // adapter
     private ArtistAdapter artistAdapter;
+    private String searchViewKeyword = "";
 
     public ArtistSearchFragment() {
     }
@@ -52,21 +46,54 @@ public class ArtistSearchFragment extends Fragment implements AdapterView.OnItem
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
+
+        // get the artist list back, so we don't need to query again if the screen rotate...
+        if (savedInstanceState != null && savedInstanceState.getSerializable("dataset") != null) {
+            dataset = (ArrayList<Hashtable<String, String>>) savedInstanceState.getSerializable("dataset");
+
+            searchViewKeyword = savedInstanceState.getString("searchViewKeyword");
+        } else {
+            dataset = new ArrayList<Hashtable<String, String>>();
+        }
+
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle outState) {
+        //super.onSaveInstanceState(outState);
+
+        // save the search result
+        // avoid research
+        if (dataset != null) {
+            outState.putSerializable("dataset", dataset);
+        }
+
+        outState.putString("searchViewKeyword", searchViewKeyword);
+
     }
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         inflater.inflate(R.menu.menu_artistsearch, menu);
 
-        View v = (View) menu.findItem(R.id.action_search).getActionView();
-        EditText artistNameEditText = (EditText) v.findViewById(R.id.edittext_artistName);
-        artistNameEditText.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+        MenuItem searchItem = menu.findItem(R.id.action_search);
+        final SearchView searchView = (SearchView) MenuItemCompat.getActionView(searchItem);
+        searchView.setQueryHint(getString(R.string.hint_artistName));
+        if (searchViewKeyword.length() > 0) {
+            // retain the searchview state
+            searchItem.expandActionView();
+            searchView.setQuery(searchViewKeyword, false);
+        }
 
+
+
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
-            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                if (actionId == EditorInfo.IME_ACTION_SEARCH && !isSearching) {
+            public boolean onQueryTextSubmit(String s) {
 
-                    String keyword = v.getText().toString().trim();
+                if (!isSearching) {
+
+                    String keyword = s.trim();
 
                     if (keyword.length() == 0) {
                         // Toast user..
@@ -76,9 +103,15 @@ public class ArtistSearchFragment extends Fragment implements AdapterView.OnItem
                         ArtistSearchAsyncTask asat = new ArtistSearchAsyncTask();
                         asat.execute(keyword);
                     }
-
-                    return true;
                 }
+                // event consumed
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String s) {
+                // Give up UX, avoid too many network traffic while search while user type.
+                searchViewKeyword = s;
                 return false;
             }
         });
@@ -88,14 +121,18 @@ public class ArtistSearchFragment extends Fragment implements AdapterView.OnItem
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView =  inflater.inflate(R.layout.fragment_artistsearch, container, false);
 
-        //artistNameEditText = (TextView) rootView.findViewById(R.id.edittext_artistName);
         // get the lsit view
         searchResultListView = (ListView) rootView.findViewById(R.id.listview_searchResult);
         searchResultListView.setEmptyView(rootView.findViewById(android.R.id.empty));
         searchResultListView.setOnItemClickListener(this);
 
         rootView.findViewById(android.R.id.empty).setVisibility(View.INVISIBLE);
-        // create asyncTask
+
+        // research the adapter by the data
+        artistAdapter = new ArtistAdapter(getActivity(), dataset);
+        searchResultListView.setAdapter(artistAdapter);
+
+
         return rootView;
     }
 
@@ -125,9 +162,16 @@ public class ArtistSearchFragment extends Fragment implements AdapterView.OnItem
             SpotifyApi api = new SpotifyApi();
             SpotifyService spotify = api.getService();
 
-            ArtistsPager ap = spotify.searchArtists(params[0]);
 
-            return ap.artists.items;
+            try {
+                ArtistsPager ap = spotify.searchArtists(params[0]);
+                return ap.artists.items;
+
+            } catch (RetrofitError e) {
+                e.printStackTrace();
+                return null;
+            }
+
         }
 
         @Override
@@ -145,7 +189,7 @@ public class ArtistSearchFragment extends Fragment implements AdapterView.OnItem
             }
 
             // convert it into hashtable
-            ArrayList<Hashtable<String, String>> dataset = new ArrayList<Hashtable<String, String>>();
+            dataset.clear();
 
             for (Artist artist : artists) {
                 Hashtable<String, String> eachArtist = new Hashtable<String, String>();
